@@ -2,9 +2,9 @@
  
 <!--Tags: Arduino TensorFlowDecisionForests TensorFlow MachineLearning-->
  
-This project shows how to train a Machine Learning model with TensorFlow Decision Forests (in python), and export the model to an Arduino to run predictions.
+This project shows how to generate the predictions of a TensorFlow Decision Forests model on an Arduino.
  
-We train a model to score, between 0 and 10, the quality of red wine from its characteristics (e.g. pH, fixed volatile and citric acidities, sugar, sulphates, etc.). The model is trained from the wine experts annotations collected in the [Wine Quality's UCI ML repository](https://archive.ics.uci.edu/ml/datasets/Wine+Quality). The model is a small regressive Gradient Boosted Trees with 20 trees. The top part of the first tree looks as follow:
+We train a model to score, between 0 and 10, the quality of red wine from its physical characteristics (e.g. pH, fixed volatile and citric acidities, sugar, sulphates, etc.). The model is trained from wine expert annotations available in the [Wine Quality's UCI ML repository](https://archive.ics.uci.edu/ml/datasets/Wine+Quality). The model is a small regressive Gradient Boosted Trees with 20 trees. The first of these trees looks as follow:
 
 <p align="center">
 <img src="plot_first_tree.png" />
@@ -15,7 +15,7 @@ We train a model to score, between 0 and 10, the quality of red wine from its ch
 The project works as follow:
  
 1. Train and evaluate a model with TF-DF (in python).
-1. Export the model into a compact binary format (converted written in python).
+1. Export the model into a compact binary format (converter written in python).
 1. Store the model data in a `.h` file compatible with the Arduino compiler.
 1. Compile and upload the model data and inference code on an Arduino.
 1. Run the model on the Arduino.
@@ -24,7 +24,7 @@ The model is stored in the Arduino's Flash memory. During inference, each tree i
  
 ## Usage example
  
-1. Install Python>=3.7 and TensorFlow Decision Forests `pip3 install tensorflow_decision_forests`.
+1. Install Python>=3.7 and TensorFlow Decision Forests: `pip3 install tensorflow_decision_forests`.
 1. Run `python3 train_model.py` to train and export the model. The model is exported to `run_model/exported_model.h`. If the file already exists, it is overridden.
 1. Compile and upload `run_model/run_model.ino` to an Ardwino. An example is hard coded into `run_model.ino`. The model prediction is printed on the Serial monitor.
  
