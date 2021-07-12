@@ -24,7 +24,11 @@ train_ds = tfdf.keras.pd_dataframe_to_tf_dataset(
 
 # Train the model.
 model = tfdf.keras.GradientBoostedTreesModel(
-    num_trees=20, max_depth=6, task=tfdf.keras.Task.REGRESSION)
+    num_trees=20,
+    max_num_nodes=32,
+    task=tfdf.keras.Task.REGRESSION,
+    growing_strategy="BEST_FIRST_GLOBAL",
+    shrinkage=0.2)
 model.fit(train_ds)
 
 print("Model statistics")
@@ -32,7 +36,7 @@ print(model.summary())
 
 # Plot the first tree.
 html = tfdf.model_plotter.plot_model(model, tree_idx=0, max_depth=3)
-open("plot_first_tree.html","w").write(html)
+open("plot_first_tree.html", "w").write(html)
 
 # Note: By default, part of the training dataset is used for validation.
 # In small datasets, this logic should be optimizer (and possibly disabled) to maximize the model quality.
