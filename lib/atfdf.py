@@ -1,26 +1,48 @@
 # Ardwino TensorFlow Decision Forests
 # Mathieu Guillame-Bert, 2021
 #
-# Export TensorFlow Decision Forest models to Ardwino
+# Export a Gradient Boosted Tree trained with
+# TensorFlow Decision Forest models to an
+# Ardwino compatible serving format.
 
 import tensorflow_decision_forests as tfdf
 import struct
 
-# Format of the model.
+# Format of the Ardwino model format.
 FORMAT_VERSION = 1
 
 
-def convert_model(model, output_path):
-    """Converts a TensorFlow Decision Forests model into an Arduino compatible serving model.
+def convert_model(model: tfdf.keras.GradientBoostedTreesModel,
+                  output_path: str):
+    """Converts a TF-DF model to an Arduino compatible serving model.
 
-    The input model format is described at: https://www.tensorflow.org/decision_forests/api_docs/python/tfdf/py_tree
-    The output model format is described in the "Binary model format" section of the `README.md`.
+    The input model format is described at:
+    https://www.tensorflow.org/decision_forests/api_docs/python/tfdf/py_tree
+    The output model format is described in the "Binary model format" section
+    of the `README.md`.
+
+    Limitation:
+        - Only support for Gradient Boosted Trees model with one output
+          dimension e.g. binary classification, regression.
+        - Does not apply the linking / activation function of the model i.e.
+          returns logit in case of binary classification (instead of a
+          probability).
+        - Only support for numerical features. No support for categorical or
+          categorical-set features.
+        - Limited to a maximum of 32k nodes per tree. Note: Each node takes 8
+          bytes of flash memory, so you'll probably run out of memory before
+          that.
+
+    Args:
+        model: TensorFlow Decision Forests trained model.
+        output_path: Output directory.
     """
 
     # Access the model structure.
     inspector = model.make_inspector()
 
-    # The initial prediction is the value of the model without any tree. It is also called "bias". The initial prediction value is added to the leaf outputs
+    # The initial prediction is the value of the model without any tree (also
+    # called "bias"). The initial prediction value is added to the leaf outputs
     # of the first tree.
     initial_prediction = inspector.specialized_header().initial_predictions[0]
 
@@ -30,7 +52,8 @@ def convert_model(model, output_path):
     # Total memory usage of the forest data. Sum of len of "forest_data".
     forest_data_size_in_bytes = 0
 
-    # Maximum binary format size among the tree. Used to determine the required inference buffer size.
+    # Maximum binary format size among the tree. Used to determine the
+    # required inference buffer size.
     max_tree_data_size_in_bytes = 0
 
     # Total number of nodes in the model.
@@ -39,14 +62,7 @@ def convert_model(model, output_path):
     # Number of nodes for each tree.
     num_node_per_trees = []
 
-    for tree_idx in range(inspector.num_trees()):
-
-        # Extract a tree.
-        # Patch bug in TF-DF v0.1.7.
-        requested_tree_idx = tree_idx
-        if tfdf.__version__ == "0.1.7":
-            requested_tree_idx = tree_idx + 1
-        tree = inspector.extract_tree(tree_idx=requested_tree_idx)
+    for tree_idx, tree in enumerate(inspector.extract_all_trees()):
 
         # Convert it to the binary format.
         tree_data = bytearray()
@@ -63,16 +79,20 @@ def convert_model(model, output_path):
             max_tree_data_size_in_bytes = tree_data_size_in_bytes
 
     # Model header.
-    header = struct.pack("<HHH", FORMAT_VERSION,
-                         inspector.num_trees(), total_num_nodes)
+    header = struct.pack("<HHH", FORMAT_VERSION, inspector.num_trees(),
+                         total_num_nodes)
 
-    print(f"The model takes {forest_data_size_in_bytes} bytes of Flash memory and {max_tree_data_size_in_bytes + len(header)} bytes of RAM memory (during inference).")
+    print(
+        f"The model takes {forest_data_size_in_bytes} bytes of Flash memory "
+        f"and {max_tree_data_size_in_bytes + len(header)} bytes of RAM memory "
+        "(during inference).")
 
     # Export the model data to a .h file.
     with open(output_path, "w") as output_file:
 
         # Comments.
-        output_file.write("// Exported TensorFlow Decision Forests model for Arduino.\n")
+        output_file.write(
+            "// Exported TensorFlow Decision Forests model for Arduino.\n")
         output_file.write("// This file was automatically generated.\n\n")
 
         output_file.write("#include \"atfdf.h\"\n\n")
@@ -81,9 +101,9 @@ def convert_model(model, output_path):
         output_file.write(
             f"// Flash memory usage: {forest_data_size_in_bytes} bytes\n")
         output_file.write(
-            f"// RAM usage during inference: {max_tree_data_size_in_bytes + len(header)} bytes\n")
-        output_file.write(
-            f"// Input features ({len(inspector.features())}):\n")
+            f"// RAM usage during inference: {max_tree_data_size_in_bytes + len(header)} bytes\n"
+        )
+        output_file.write(f"// Input features ({len(inspector.features())}):\n")
         for feature_idx, feature in enumerate(inspector.features()):
             output_file.write(f"// \t{feature_idx}: {feature}\n")
 
@@ -91,8 +111,8 @@ def convert_model(model, output_path):
         tree_variable_names = []
         for tree_idx, tree_data in enumerate(forest_data):
             variable_name = f"_kModelTree{tree_idx}"
-            _write_bytearray_to_cc_variable(
-                output_file, variable_name, True, tree_data)
+            _write_bytearray_to_cc_variable(output_file, variable_name, True,
+                                            tree_data)
             tree_variable_names.append(variable_name)
 
         # Model object.
@@ -114,21 +134,23 @@ def _write_bytearray_to_cc_char_array(output_file, data: bytearray):
         output_file.write("\\x" + format(value, "02x"))
 
 
-def _write_bytearray_to_cc_variable(output_file, variable_name: str, prog_mem: bool, data: bytearray):
+def _write_bytearray_to_cc_variable(output_file, variable_name: str,
+                                    prog_mem: bool, data: bytearray):
     output_file.write("const char ")
     if prog_mem:
         output_file.write("PROGMEM ")
     output_file.write(variable_name)
     output_file.write("[] = \"")
     for value_idx, value in enumerate(data):
-        if ((value_idx+1) % 20) == 0:
+        if ((value_idx + 1) % 20) == 0:
             # Insert new line.
             output_file.write("\"\n\t\"")
         output_file.write("\\x" + format(value, "02x"))
     output_file.write("\";\n")
 
 
-def _export_node(node: tfdf.py_tree.node.AbstractNode, dst: bytearray, value_offset: float) -> int:
+def _export_node(node: tfdf.py_tree.node.AbstractNode, dst: bytearray,
+                 value_offset: float) -> int:
     """Export the binary data for a node and its children.
 
     Args:
@@ -143,21 +165,21 @@ def _export_node(node: tfdf.py_tree.node.AbstractNode, dst: bytearray, value_off
     if isinstance(node, tfdf.py_tree.node.NonLeafNode):
         # Non leaf node i.e. condition node.
 
-        if isinstance(node.condition, tfdf.py_tree.condition.NumericalHigherThanCondition):
+        if isinstance(node.condition,
+                      tfdf.py_tree.condition.NumericalHigherThanCondition):
             save_node_offset_pos = len(dst)
             # Node data.
-            dst.extend(struct.pack("<HHf",
-                                   0,
-                                   node.condition.feature.col_idx,
-                                   node.condition.threshold))
+            dst.extend(
+                struct.pack("<HHf", 0, node.condition.feature.col_idx,
+                            node.condition.threshold))
 
             # Export children.
             neg_nodes = _export_node(node.neg_child, dst, value_offset)
             pos_nodes = _export_node(node.pos_child, dst, value_offset)
 
             # Update the "positive_child_offset".
-            dst[save_node_offset_pos:(
-                save_node_offset_pos+2)] = struct.pack("H", neg_nodes)
+            dst[save_node_offset_pos:(save_node_offset_pos + 2)] = struct.pack(
+                "H", neg_nodes)
 
             return 1 + pos_nodes + neg_nodes
 
@@ -166,8 +188,5 @@ def _export_node(node: tfdf.py_tree.node.AbstractNode, dst: bytearray, value_off
 
     else:
         # Leaf node
-        dst.extend(struct.pack("<HHf",
-                               0,
-                               0,
-                               node.value.value + value_offset))
+        dst.extend(struct.pack("<HHf", 0, 0, node.value.value + value_offset))
         return 1

@@ -26,7 +26,7 @@ void loop() {
     // 8: sulphates: 0.56
     // 9: total_sulfur_dioxide: 34.0
     // 10: volatile_acidity: 0.7
-    float example[] = {9.4f, 0.076f, 0.0f, 0.9978f,  7.4f, 11.0f, 3.51f, 1.9f, 0.56f, 34.0f, 0.7f};
+    const float example[] = {9.4f, 0.076f, 0.0f, 0.9978f,  7.4f, 11.0f, 3.51f, 1.9f, 0.56f, 34.0f, 0.7f};
 
     // Run the model.
     const float prediction = predict(example, kMyModel);
@@ -34,6 +34,6 @@ void loop() {
     Serial.print("Prediction: ");
     Serial.println(prediction, 6);
 
-    delay(1000);
+    delay(1000/*ms*/);
   }
 }

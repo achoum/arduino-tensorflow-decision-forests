@@ -1,13 +1,14 @@
-# Train a TensorFlow Decision Forests model and export it to the Ardwino format.
+# Train a Gradient Boosted Tree model with the TensorFlow Decision Forests
+# library. Then, export the model to an Ardwino compatible serving format.
+#
 # Mathieu Guillame-Bert, 2021
 
 import tensorflow_decision_forests as tfdf
-import os
 import pandas as pd
 import tensorflow as tf
 from lib import atfdf
 
-print("Found TensorFlow Decision Forests v" + tfdf.__version__)
+print("TensorFlow Decision Forests v" + tfdf.__version__)
 
 dataset_path = tf.keras.utils.get_file(
     "wine.csv", "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
@@ -34,20 +35,22 @@ model.fit(train_ds)
 print("Model statistics")
 print(model.summary())
 
-# Plot the first tree.
+# Plot the top of the first tree.
 html = tfdf.model_plotter.plot_model(model, tree_idx=0, max_depth=3)
 open("plot_first_tree.html", "w").write(html)
 
 # Note: By default, part of the training dataset is used for validation.
-# In small datasets, this logic should be optimizer (and possibly disabled) to maximize the model quality.
+# In small datasets, this logic should be optimizer (and possibly disabled) to
+# maximize the model quality.
 print("Expected RMSE of the model (the lower the better):")
 print(model.make_inspector().evaluation().rmse)
 
 # Export the model.
 #
-# Training larger (number of trees and maximum depth) forests leads to better predictions. However, the model
-# size is limited by the Ardwino memory and increase the inference speed. The size of the model is printed bellow.
-# It is also available in the .h generated file.
+# Training larger (number of trees and maximum depth) forests leads to better
+# predictions. However, the model size is limited by the Ardwino memory and
+# increase the inference speed. The size of the model is printed bellow. It is
+# also available in the .h generated file.
 atfdf.convert_model(model, "run_model/exported_model.h")
 
 # Show the first example values and prediction.
